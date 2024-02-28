@@ -1,0 +1,41 @@
+
+fn run_nodes(
+	node: &Node,
+	source_code: &str,
+	file: &mut File,
+	padding: &str,
+	ending: &str
+) -> Result<()> {
+	for child in node.children(&mut node.walk()) {
+		if child.kind().ends_with("statement") {
+			let _longest = node
+				.children(&mut node.walk())
+				.map(|child| child.kind().len())
+				.max()
+				.unwrap_or(0);
+
+		// println!("{}", longest);
+		} else if child.kind().ends_with("clause") {
+			println!("clause")
+		} else if child.kind().ends_with("subexpression") {
+			println!("subexpression");
+		} else if child.child_count() == 0 {
+			println!("leaf");
+			// TODO: remove `;`
+
+			write!(
+				file,
+				"{}{}{}",
+				padding,
+				child.utf8_text(source_code.as_bytes()).unwrap(),
+				ending
+			)?;
+		} else {
+			println!("else");
+		}
+
+		run_nodes(&child, &source_code, file, padding, " ")?;
+	}
+
+	Ok(())
+}

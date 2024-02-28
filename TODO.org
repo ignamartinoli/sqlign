@@ -1,0 +1,14 @@
+* TODO
+
+- Add in-place formatting
+- Indent sub-queries
+- Add ~;~ at the end of every statement (add option to disable for only one query in the file)
+
+- Entre nodo y nodo de select_statements pueden haber nodos ';', ignorarlos y ponerlos automaticamente
+
+** Support
+
+- [ ] ~SELECT DISTINCT~
+- [ ] ~INNER JOIN _ ON _~
+- [ ] ~ORDER BY~
+- [ ] ~GROUP BY~
