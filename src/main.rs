@@ -1,9 +1,8 @@
 use std::fs::File;
 use std::io::{self, prelude::*, Write};
-use std::result::Result;
 
 use clap::Parser;
-use tree_sitter::{Node, TreeCursor};
+use tree_sitter::Node;
 
 #[derive(Parser)]
 #[command(about = "This utility formats SQL code alignment", bin_name = "sqlign")]
@@ -38,7 +37,7 @@ fn run() -> Result<(), io::Error> {
 
 	let root_node = tree.root_node();
 
-	list_nodes(&root_node, &source_code, 0);
+	// list_nodes(&root_node, &source_code, 0);
 
 	// run_nodes(&root_node, &source_code, &mut output, "", "")?;
 
@@ -57,7 +56,6 @@ fn run_source(node: &Node, source: &str, file: &mut File) -> Result<(), io::Erro
 				.unwrap_or(0);
 
 			run_statement(&child, source, file, longest)?;
-			write!(file, ";\n")?;
 		}
 	}
 
@@ -70,37 +68,67 @@ fn run_statement(
 	file: &mut File,
 	longest: usize
 ) -> Result<(), io::Error> {
-	for child in node.children(&mut node.walk()) {
-		write!(
-			file,
-			"{}",
-			" ".repeat(longest.saturating_sub(child.kind().len()))
-		)?;
-		run_node(&child, source, file, " ")?;
-		write!(file, "\n")?;
+	for (i, child) in node.children(&mut node.walk()).enumerate() {
+		if i + 1 == node.child_count() {
+			run_clause(&child, source, file, longest, ";")?;
+		} else {
+			run_clause(&child, source, file, longest, "")?;
+		}
 	}
 
 	Ok(())
 }
 
-fn run_clause(node: &Node, source: &str, file: &mut File) -> Result<(), io::Error> { todo!() }
+fn run_clause(
+	node: &Node,
+	source: &str,
+	file: &mut File,
+	longest: usize,
+	ending: &str
+) -> Result<(), io::Error> {
+	let indent = longest.saturating_sub(node.kind().len());
+	write!(file, "{}", " ".repeat(indent))?;
 
-fn run_node(node: &Node, source: &str, file: &mut File, append: &str) -> Result<(), io::Error> {
-	for child in node.children(&mut node.walk()) {
-		if child.child_count() == 0 {
-			// BUG: select if <Space>, <CR> or nothing
-			write!(file, "{} ", child.utf8_text(source.as_bytes()).unwrap())?;
-		} else if child.kind().ends_with("statement") {
-			// TODO: run_substatement()
-		} else if child.kind() == "dotted_name" {
-			run_dotted_name(&child, source, file)?;
-		} else if child.kind() == "binary_expression" {
-			run_binary_expression(&child, source, file)?;
-		} else if child.kind().ends_with("subexpression") {
-			run_node(&child, source, file, " ")?;
-			todo!()
+	for (i, child) in node.children(&mut node.walk()).enumerate() {
+		if i + 1 == child.child_count() {
+			run_node(&child, source, file, "")?;
 		} else {
-			run_node(&child, source, file, " ")?;
+			run_node(&child, source, file, " ")?; // causa drama
+		}
+	}
+
+	write!(file, "{ending}\n")?;
+
+	Ok(())
+}
+
+fn run_node(node: &Node, source: &str, file: &mut File, ending: &str) -> Result<(), io::Error> {
+	if node.child_count() == 0 {
+		write!(
+			file,
+			"{}{ending}",
+			node.utf8_text(source.as_bytes()).unwrap()
+		)?;
+	} else {
+		for child in node.children(&mut node.walk()) {
+			if child.child_count() == 0 {
+				// BUG: select if <Space>, <CR> or nothing
+				write!(
+					file,
+					"{}{ending}",
+					child.utf8_text(source.as_bytes()).unwrap()
+				)?;
+			// } else if child.kind().ends_with("statement") {
+			// 	// run_substatement()
+			// } else if child.kind() == "dotted_name" {
+			// 	run_dotted_name(&child, source, file)?;
+			// } else if child.kind() == "binary_expression" {
+			// 	// run_binary_expression(&child, source, file)?;
+			// } else if child.kind().ends_with("subexpression") {
+			// 	run_node(&child, source, file, " ")?;
+			} else {
+				run_node(&child, source, file, " ")?;
+			}
 		}
 	}
 
