@@ -39,8 +39,6 @@ fn run() -> Result<(), io::Error> {
 
 	// list_nodes(&root_node, &source_code, 0);
 
-	// run_nodes(&root_node, &source_code, &mut output, "", "")?;
-
 	run_source(&root_node, &source_code, &mut output)?;
 
 	Ok(())
@@ -49,13 +47,7 @@ fn run() -> Result<(), io::Error> {
 fn run_source(node: &Node, source: &str, file: &mut File) -> Result<(), io::Error> {
 	for child in node.children(&mut node.walk()) {
 		if child.kind().ends_with("statement") {
-			let longest = child
-				.children(&mut node.walk())
-				.map(|child| child.kind().len())
-				.max()
-				.unwrap_or(0);
-
-			run_statement(&child, source, file, longest)?;
+			run_statement(&child, source, file, ";\n")?;
 		}
 	}
 
@@ -66,83 +58,47 @@ fn run_statement(
 	node: &Node,
 	source: &str,
 	file: &mut File,
-	longest: usize
-) -> Result<(), io::Error> {
-	for (i, child) in node.children(&mut node.walk()).enumerate() {
-		if i + 1 == node.child_count() {
-			run_clause(&child, source, file, longest, ";")?;
-		} else {
-			run_clause(&child, source, file, longest, "")?;
-		}
-	}
-
-	Ok(())
-}
-
-fn run_clause(
-	node: &Node,
-	source: &str,
-	file: &mut File,
-	longest: usize,
 	ending: &str
 ) -> Result<(), io::Error> {
-	let indent = longest.saturating_sub(node.kind().len());
-	write!(file, "{}", " ".repeat(indent))?;
+	let longest = node
+		.children(&mut node.walk())
+		.map(|child| child.kind().len())
+		.max()
+		.unwrap_or(0);
 
 	for (i, child) in node.children(&mut node.walk()).enumerate() {
-		if i + 1 == child.child_count() {
-			run_node(&child, source, file, "")?;
+		let indent = longest.saturating_sub(child.kind().len());
+		write!(file, "{}", " ".repeat(indent))?;
+
+		run_clause(&child, source, file)?;
+
+		let ending = if i + 1 == node.child_count() { ";" } else { "" };
+		write!(file, "{ending}\n")?;
+	}
+
+	Ok(())
+}
+
+fn run_clause(node: &Node, source: &str, file: &mut File) -> Result<(), io::Error> {
+	for (i, child) in node.children(&mut node.walk()).enumerate() {
+		if child.child_count() == 0 {
+			write!(file, "{}", child.utf8_text(source.as_bytes()).unwrap())?;
+		} else if child.kind() == "dotted_name" {
+			run_dotted_name(&child, source, file)?;
 		} else {
-			run_node(&child, source, file, " ")?; // causa drama
+			run_clause(&child, source, file)?;
 		}
-	}
 
-	write!(file, "{ending}\n")?;
-
-	Ok(())
-}
-
-fn run_node(node: &Node, source: &str, file: &mut File, ending: &str) -> Result<(), io::Error> {
-	if node.child_count() == 0 {
-		write!(
-			file,
-			"{}{ending}",
-			node.utf8_text(source.as_bytes()).unwrap()
-		)?;
-	} else {
-		for child in node.children(&mut node.walk()) {
-			if child.child_count() == 0 {
-				// BUG: select if <Space>, <CR> or nothing
-				write!(
-					file,
-					"{}{ending}",
-					child.utf8_text(source.as_bytes()).unwrap()
-				)?;
-			// } else if child.kind().ends_with("statement") {
-			// 	// run_substatement()
-			// } else if child.kind() == "dotted_name" {
-			// 	run_dotted_name(&child, source, file)?;
-			// } else if child.kind() == "binary_expression" {
-			// 	// run_binary_expression(&child, source, file)?;
-			// } else if child.kind().ends_with("subexpression") {
-			// 	run_node(&child, source, file, " ")?;
-			} else {
-				run_node(&child, source, file, " ")?;
-			}
-		}
+		let ending = if i + 1 == node.child_count() { "" } else { " " };
+		write!(file, "{}", ending)?;
 	}
 
 	Ok(())
-}
-
-fn run_binary_expression(node: &Node, source: &str, file: &mut File) -> Result<(), io::Error> {
-	todo!("second node has spaces around");
 }
 
 fn run_dotted_name(node: &Node, source: &str, file: &mut File) -> Result<(), io::Error> {
 	for child in node.children(&mut node.walk()) {
 		if child.child_count() == 0 {
-			// TODO: call run_node with "" as next_character
 			write!(file, "{}", child.utf8_text(source.as_bytes()).unwrap())?;
 		} else {
 			run_dotted_name(&child, source, file)?;
@@ -151,53 +107,6 @@ fn run_dotted_name(node: &Node, source: &str, file: &mut File) -> Result<(), io:
 
 	Ok(())
 }
-
-// fn run_nodes(
-// 	node: &Node,
-// 	source: &str,
-// 	file: &mut File,
-// 	padding: &str,
-// 	ending: &str
-// ) -> Result<()> {
-// 	for child in node.children(&mut node.walk()) {
-// 		if child.kind().ends_with("statement") {
-// 			let _longest = child
-// 				.children(&mut node.walk())
-// 				.map(|child| child.kind().len())
-// 				.max()
-// 				.unwrap_or(0);
-//
-// 			run_nodes(&child, &source, file, padding, " ")?;
-//
-// 			// TODO: only if there are other statements in the same level
-// 			write!(file, ";\n")?;
-// 		} else if child.kind().ends_with("clause") {
-// 			run_nodes(&child, &source, file, padding, " ")?;
-//
-// 			write!(file, "\n")?;
-// 		} else if child.kind().ends_with("subexpression") {
-// 			run_nodes(&child, &source, file, padding, " ")?;
-// 		} else if child.kind() == "dotted_name" {
-// 			run_nodes(&child, &source, file, padding, "")?;
-// 		} else if child.kind() == ";" {
-// 			run_nodes(&child, &source, file, padding, "")?;
-// 		} else if child.child_count() == 0 {
-// 			write!(
-// 				file,
-// 				"{}{}{}",
-// 				padding,
-// 				child.utf8_text(source.as_bytes()).unwrap(),
-// 				ending
-// 			)?;
-//
-// 			run_nodes(&child, &source, file, padding, " ")?;
-// 		} else {
-// 			run_nodes(&child, &source, file, padding, " ")?;
-// 		}
-// 	}
-//
-// 	Ok(())
-// }
 
 fn list_nodes(node: &Node, source_code: &str, mut level: u8) {
 	level += 1;
