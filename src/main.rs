@@ -73,8 +73,10 @@ fn run_statement(
 		run_clause(&child, source, file)?;
 
 		let ending = if i + 1 == node.child_count() { ";" } else { "" };
-		write!(file, "{ending}\n")?;
+		write!(file, "{}\n", ending)?;
 	}
+
+	// write!(file, "{}", ending)?;
 
 	Ok(())
 }
@@ -85,6 +87,9 @@ fn run_clause(node: &Node, source: &str, file: &mut File) -> Result<(), io::Erro
 			write!(file, "{}", child.utf8_text(source.as_bytes()).unwrap())?;
 		} else if child.kind() == "dotted_name" {
 			run_dotted_name(&child, source, file)?;
+		} else if child.kind().ends_with("subexpression") {
+			// TODO:
+			run_clause(&child, source, file)?;
 		} else {
 			run_clause(&child, source, file)?;
 		}
@@ -108,16 +113,16 @@ fn run_dotted_name(node: &Node, source: &str, file: &mut File) -> Result<(), io:
 	Ok(())
 }
 
-fn list_nodes(node: &Node, source_code: &str, mut level: u8) {
-	level += 1;
-	for child in node.children(&mut node.walk()) {
-		println!(
-			"-[ {}. Node {} ]-)\n{}",
-			level,
-			child.kind(),
-			child.utf8_text(source_code.as_bytes()).unwrap()
-		);
-
-		list_nodes(&child, source_code, level)
-	}
-}
+// fn list_nodes(node: &Node, source_code: &str, mut level: u8) {
+// 	level += 1;
+// 	for child in node.children(&mut node.walk()) {
+// 		println!(
+// 			"-[ {}. Node {} ]-)\n{}",
+// 			level,
+// 			child.kind(),
+// 			child.utf8_text(source_code.as_bytes()).unwrap()
+// 		);
+//
+// 		list_nodes(&child, source_code, level)
+// 	}
+// }
